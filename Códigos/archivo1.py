@@ -29,71 +29,78 @@ RESULTS_DIR = BASE_DIR / "Resultados"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Rutas de las bases de datos 
-ruta_exp = DATA_DIR / "datos.xlsx" # Base de datos de remesas
+ruta_datos = DATA_DIR / "datos.xlsx" # Base de datos de remesas
 
 
 # %% Cargar y limpiar base de datos =========================
 
 # Base de datos con la serie importada a python
-expo_base = pd.read_excel(
-    ruta_exp,
-    header=None,
-    names=["Ingresos de Remesas de trabajadores"]
+remesas_base = pd.read_excel(
+    ruta_datos,
+    header=0,  # La primera fila contiene los nombres de las columnas
 )
+remesas_base.columns = ["Fecha", "Ingresos de Remesas de trabajadores"] #Nombrar columnas de forma explícita para evitar problemas de lectura
 
 # --- LIMPIEZA DE DATOS (Crucial para eliminar textos informativos y vacíos al final) ---
-# Forzamos la conversión a numérico (los textos del final se convertirán en NaN)
-expo_base["Ingresos de Remesas de trabajadores"] = pd.to_numeric(
-    expo_base["Ingresos de Remesas de trabajadores"], 
+# Convertir Remesas a numérico (los textos del final se convertirán en NaN)
+remesas_base["Ingresos de Remesas de trabajadores"] = pd.to_numeric(
+    remesas_base["Ingresos de Remesas de trabajadores"], 
     errors="coerce"
 )
+# Convertir Fecha a formato datetime (si es necesario)
+remesas_base["Fecha"] = pd.to_datetime(remesas_base["Fecha"], errors="coerce")
+
 # Eliminamos todas las filas que contengan NaN
-expo_base = expo_base.dropna()
+remesas_base = remesas_base.dropna()
 
 # Ver el tipo de objeto de la base de datos (Pandas.DataFrame)
 print("\n--- Información de la Base de Datos ---")
-print(type(expo_base))
+print(type(remesas_base))
+print(f"\nNúmero de observaciones: {len(remesas_base)}") #Confirmar el número de observaciones después de la limpieza
 
 # Ver primeras y últimas observaciones de la base de datos ya limpia
 print("\nPrimeras observaciones cargadas:")
-print(expo_base.head()) 
+print(remesas_base.head()) 
 print("\nÚltimas observaciones cargadas:")
-print(expo_base.tail()) 
+print(remesas_base.tail()) 
 
 
 # %% Creación del índice temporal de las series de tiempo
 
 # Creación del índice temporal (Inicia en 2000 según tus datos)
-fechas_expo_base = pd.date_range(
+fechas_remesas_base = pd.date_range(
     start="2000-01-01", 
-    periods=len(expo_base),
+    periods=len(remesas_base),
     freq="MS"
 )
 
 # Agregar el índice temporal a la base de datos
-expo_base.index = fechas_expo_base
+remesas_base.index = fechas_remesas_base
 
 # Ver primeras y últimas observaciones de la base de datos, ahora con índice temporal
 print("\n--- Base de Datos con Índice Temporal ---")
-print(expo_base.head()) 
-print(expo_base.tail()) 
+print(remesas_base.head()) 
+print(remesas_base.tail()) 
 
 
 # %% Creación de la serie de tiempo de "remesas"
 
-# La nueva serie de tiempo se va a llamar "expo_serie" (para mantener consistencia con tu código)
+# La nueva serie de tiempo se va a llamar "remesas_serie" (para mantener consistencia con tu código)
 # pero ahora apunta a la columna correcta
-expo_serie = expo_base["Ingresos de Remesas de trabajadores"].copy()
+remesas_serie = remesas_base["Ingresos de Remesas de trabajadores"].copy()
 
 # Ver el principio y final de la serie de tiempo
-print("\n--- Serie Temporal Seleccionada (expo_serie) ---")
-print(expo_serie.head())
-print(expo_serie.tail())
-print(type(expo_serie))
+print("\n--- Serie Temporal Seleccionada (remesas_serie) ---")
+print(remesas_serie.head())
+print(remesas_serie.tail())
+print(type(remesas_serie))
 
 # Ver algunas estadísticas descriptivas de la serie de tiempo 
 print("\nEstadísticas descriptivas:")
-print(expo_serie.describe())
+print(remesas_serie.describe())
+print(f"\nUnidad: Millones de dólares (USD)")
+print(f"Frecuencia: Mensual")
+print(f"Fuente: Banco de la República de Colombia")
 
 
 # %% =========================
@@ -101,12 +108,22 @@ print(expo_serie.describe())
 # ============================
 
 # Gráfica de la serie de tiempo "Remesas de trabajadores"
-plt.figure(figsize=(10, 5))
-plt.plot(expo_serie, color="blue", linewidth=1.5)
-plt.title("Ingresos de Remesas de Trabajadores")
-plt.xlabel("Fecha")
-plt.ylabel("Valor")
-plt.grid(True)
+plt.figure(figsize=(12, 5))
+plt.plot(remesas_serie, color="blue", linewidth=1.5)
+plt.title("Ingresos de Remesas de Trabajadores en Colombia\n(Enero 2000 – Abril 2026)", 
+          fontsize=13, fontweight="bold")
+plt.xlabel("Fecha", fontsize=11)
+plt.ylabel("Millones de USD", fontsize=11)  #unidades
+plt.grid(True, alpha=0.4)
+
+# Nota al pie con frecuencia y fuente
+plt.figtext(
+    0.5, -0.02,  # posición: centrado, debajo de la gráfica
+    "Frecuencia: Mensual  |  Fuente: Banco de la República de Colombia",
+    ha="center",  # alineado al centro
+    fontsize=9,
+    color="gray"
+)
 # Guardar gráfico en carpeta de resultados antes de mostrarlo
 plt.savefig(RESULTS_DIR / "01_remesas_original.png", dpi=300, bbox_inches="tight")
 plt.show()
@@ -116,22 +133,25 @@ plt.show()
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
 plot_acf(
-    expo_serie,
+    remesas_serie,
     lags=24,
     alpha=0.05,
     bartlett_confint=False,
     ax=axes[0]
 )
-axes[0].set_title("FAC Remesas de Trabajadores")
+axes[0].set_title("FAC Remesas de Trabajadores", fontsize=12)
+axes[0].set_xlabel("Rezagos")
 
 plot_pacf(
-    expo_serie,
+    remesas_serie,
     lags=24,
     alpha=0.05,
     ax=axes[1]
 )
-axes[1].set_title("FACP de la serie original")
+axes[1].set_title("FACP de la serie original", fontsize=12)
+axes[1].set_xlabel("Rezagos")
 
+plt.suptitle("Funciones de Autocorrelación — Serie Original", fontsize=13, fontweight="bold")
 plt.tight_layout()
 # Guardar gráfico en carpeta de resultados antes de mostrarlo
 plt.savefig(RESULTS_DIR / "02_fac_facp_original.png", dpi=300, bbox_inches="tight")
@@ -140,7 +160,7 @@ plt.show()
 # %% Tests de Raíz Unitaria 
 
 # Test de Augmented Dickey Fuller (ADF)
-adf_result = adfuller(expo_serie) 
+adf_result = adfuller(remesas_serie) 
 
 print("\n=== Test ADF ===")
 print("Estadístico ADF:", adf_result[0])
@@ -157,7 +177,7 @@ else:
     print("ADF: No rechazamos H0. Según el test, la serie no es estacionaria.")
 
 # Test KPSS
-kpss_result = kpss(expo_serie, regression="c", nlags="auto")
+kpss_result = kpss(remesas_serie, regression="c", nlags="auto")
 
 print("\n=== Test KPSS ===")
 print("Estadístico KPSS:", kpss_result[0])
@@ -174,11 +194,11 @@ else:
 
 
 # %% Serie diferenciada
-expo_serie_diff = expo_serie.diff().dropna()
+remesas_serie_diff = remesas_serie.diff().dropna()
 
 # Gráfica de la serie de tiempo diferenciada
 plt.figure(figsize=(10, 5))
-plt.plot(expo_serie_diff, color="orange")
+plt.plot(remesas_serie_diff, color="orange")
 plt.title("Serie Diferenciada (Primera Diferencia)")
 plt.xlabel("Fecha")
 plt.ylabel("Valor")
@@ -189,11 +209,11 @@ plt.show()
 
 # %% Diferencia del logaritmo
 
-expo_serie_log_diff = np.log(expo_serie).diff().dropna()
+remesas_serie_log_diff = np.log(remesas_serie).diff().dropna()
 
 # Gráfica de la diferencia del logaritmo
 plt.figure(figsize=(10, 5))
-plt.plot(expo_serie_log_diff, color="green")
+plt.plot(remesas_serie_log_diff, color="green")
 plt.title("Diferencia del Logaritmo de la Serie Original")
 plt.xlabel("Fecha")
 plt.ylabel("Valor")
@@ -207,7 +227,7 @@ plt.show()
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
 plot_acf(
-    expo_serie_log_diff,
+    remesas_serie_log_diff,
     lags=24,
     alpha=0.05,
     bartlett_confint=False,
@@ -216,7 +236,7 @@ plot_acf(
 axes[0].set_title("FAC de la diferencia del logaritmo")
 
 plot_pacf(
-    expo_serie_log_diff,
+    remesas_serie_log_diff,
     lags=24,
     alpha=0.05,
     ax=axes[1]
@@ -235,7 +255,7 @@ plt.show()
 
 # Creamos el modelo SARIMAX (0, 1, 1) sobre el logaritmo de la serie
 modelo_ma1 = SARIMAX(
-    np.log(expo_serie),
+    np.log(remesas_serie),
     order=(0, 1, 1),
     trend="n",
     enforce_stationarity=False,
@@ -393,7 +413,7 @@ print(tabla_pronostico)
 
 # Gráfica del pronóstico final
 plt.figure(figsize=(12, 6))
-plt.plot(expo_serie, label="Datos Históricos (Remesas)", color="blue")
+plt.plot(remesas_serie, label="Datos Históricos (Remesas)", color="blue")
 plt.plot(pronostico_nivel, label="Pronóstico (12 meses)", color="orange", linestyle="--")
 plt.fill_between(
     pronostico_nivel.index,
